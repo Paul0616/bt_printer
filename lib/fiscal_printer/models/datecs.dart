@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_answer.dart';
+import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_blutooth_client_adapter.dart';
 import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_commans.dart';
 import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_message.dart';
 import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_report_type.dart';
 import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_response_adapter.dart';
 import 'package:bt_printer/fiscal_printer/models/utils/datecs_utils/datecs_tcp_client_adapter.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 import '../../utils/globals.dart';
 import '../fiscal_printer_response.dart';
@@ -15,6 +17,7 @@ class Datecs {
   final StreamController<FiscalPrinterResponse> _fiscalPrinterTestController;
   String? _ip;
   int? _port;
+  BluetoothDevice? device;
   String? _username;
   String? _password;
   String? _timeoutWaitingResponse;
@@ -166,35 +169,38 @@ class Datecs {
   //   _fiscalPrinterTestController.sink.add(printerResponse);
   // }
 
-  printReportZ() async {
+  printReportZ({bool isBluetooth = false}) async {
     // _ip = await SettingsManager.getFiscalPrinterHost();
     // _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
     //     3999;
     // _noOfCharactersPerLine =
     //     await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
     // _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
-    var printerResponse = FiscalPrinterResponse();
-    printerResponse.setAction(FiscalPrinterAction.printReportZ);
-    var response = await _sendCommand(
-      message: DatecsMessage(
-        command: DatecsCommands.report(DatecsReportType.reportZ),
-      ),
-    );
-    if (response != null) {
-      var info = DatecsAnswerReport(answer: response.getAnswer());
-      if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
-        printerResponse.setStatus(PrinterStatus.ok);
-        printerResponse.setZReportNumber(info.numberOfZReport.toString());
+    if(isBluetooth) {
+      var printerResponse = FiscalPrinterResponse();
+      printerResponse.setAction(FiscalPrinterAction.printReportZ);
+      //var d = BluetoothDevice(address: address)
+      var response = await _sendCommandBT(
+        message: DatecsMessage(
+          command: DatecsCommands.report(DatecsReportType.reportZ),
+        ),
+      );
+      if (response != null) {
+        var info = DatecsAnswerReport(answer: response.getAnswer());
+        if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
+          printerResponse.setStatus(PrinterStatus.ok);
+          printerResponse.setZReportNumber(info.numberOfZReport.toString());
+        } else {
+          printerResponse.setStatus(PrinterStatus.printerError);
+          printerResponse.setErrorMessage(
+              message: DatecsResponseAdapter.getErrorCodeInformation(
+                  errorCode: info.errorCode));
+        }
       } else {
-        printerResponse.setStatus(PrinterStatus.printerError);
-        printerResponse.setErrorMessage(
-            message: DatecsResponseAdapter.getErrorCodeInformation(
-                errorCode: info.errorCode));
+        printerResponse.setStatus(PrinterStatus.error404);
       }
-    } else {
-      printerResponse.setStatus(PrinterStatus.error404);
+      _fiscalPrinterTestController.sink.add(printerResponse);
     }
-    _fiscalPrinterTestController.sink.add(printerResponse);
   }
 
   // printReportZCopy(String zReportNo) async {
@@ -227,36 +233,46 @@ class Datecs {
   //   _fiscalPrinterTestController.sink.add(printerResponse);
   // }
   //
-  // printReportX() async {
-  //   _ip = await SettingsManager.getFiscalPrinterHost();
-  //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
-  //       3999;
-  //   _noOfCharactersPerLine =
-  //   await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
-  //   _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
-  //   var printerResponse = FiscalPrinterResponse();
-  //   printerResponse.setAction(FiscalPrinterAction.printReportX);
-  //   var response = await _sendCommand(
-  //     message: DatecsMessage(
-  //       command: DatecsCommands.report(DatecsReportType.reportX),
-  //     ),
-  //   );
-  //   if (response != null) {
-  //     var info = DatecsAnswerReport(answer: response.getAnswer());
-  //     if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
-  //       printerResponse.setStatus(PrinterStatus.ok);
-  //     } else {
-  //       printerResponse.setStatus(PrinterStatus.printerError);
-  //       printerResponse.setErrorMessage(
-  //           message: DatecsResponseAdapter.getErrorCodeInformation(
-  //               errorCode: info.errorCode));
-  //     }
-  //   } else {
-  //     printerResponse.setStatus(PrinterStatus.error404);
-  //   }
-  //   _fiscalPrinterTestController.sink.add(printerResponse);
-  // }
-  //
+  printReportX(BluetoothDevice? btDevice) async {
+    // _ip = await SettingsManager.getFiscalPrinterHost();
+    // _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
+    //     3999;
+    // _noOfCharactersPerLine =
+    // await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
+    // _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
+    device = btDevice;
+    if(btDevice != null) {
+      var printerResponse = FiscalPrinterResponse();
+      printerResponse.setAction(FiscalPrinterAction.printReportX);
+      var response = await _sendCommandBT(
+        message: DatecsMessage(
+          command: DatecsCommands.report(DatecsReportType.reportX),
+        ),
+      );
+      if (response != null) {
+        var info = DatecsAnswerReport(answer: response.getAnswer());
+        if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
+          printerResponse.setStatus(PrinterStatus.ok);
+        } else {
+          printerResponse.setStatus(PrinterStatus.printerError);
+          printerResponse.setErrorMessage(
+              message: DatecsResponseAdapter.getErrorCodeInformation(
+                  errorCode: info.errorCode));
+        }
+      } else {
+        printerResponse.setStatus(PrinterStatus.error404);
+      }
+      print("Status: ${printerResponse.status}");
+      print("Action: ${printerResponse.action}");
+      print("Error message: ${printerResponse.errorMessage}");
+      print("Number of fiscal tickets: ${printerResponse.numberOfFiscalTickets}");
+      print("Number of Z report: ${printerResponse.numberOfZReport}");
+      print("Cash in drawer: ${printerResponse.getCashInDrawer()}");
+      print("Daily sum: ${printerResponse.getDailySum()}");
+      _fiscalPrinterTestController.sink.add(printerResponse);
+    }
+  }
+
   // printReportZInInterval(DateTime startDate, DateTime stopDate) async {
   //   _ip = await SettingsManager.getFiscalPrinterHost();
   //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
@@ -288,38 +304,51 @@ class Datecs {
   //   _fiscalPrinterTestController.sink.add(printerResponse);
   // }
   //
-  // dailySum() async {
-  //   _ip = await SettingsManager.getFiscalPrinterHost();
-  //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
-  //       3999;
-  //   _noOfCharactersPerLine =
-  //   await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
-  //   _username = await SettingsManager.getFiscalPrinterUserName();
-  //   _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
-  //   var printerResponse = FiscalPrinterResponse();
-  //   printerResponse.setAction(FiscalPrinterAction.dailySum);
-  //   var response = await _sendCommand(
-  //     message: DatecsMessage(
-  //       command: DatecsCommands.dailySum(operatorCode: _username!),
-  //     ),
-  //   );
-  //   if (response != null) {
-  //     var info = DatecsAnswerDailySum(answer: response.getAnswer());
-  //     if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
-  //       printerResponse.setStatus(PrinterStatus.ok);
-  //       printerResponse.setDailySum(info.amount);
-  //     } else {
-  //       printerResponse.setStatus(PrinterStatus.printerError);
-  //       printerResponse.setErrorMessage(
-  //           message: DatecsResponseAdapter.getErrorCodeInformation(
-  //               errorCode: info.errorCode));
-  //     }
-  //   } else {
-  //     printerResponse.setStatus(PrinterStatus.error404);
-  //   }
-  //   _fiscalPrinterTestController.sink.add(printerResponse);
-  // }
-  //
+  dailySum(BluetoothDevice? btDevice) async {
+    device = btDevice;
+    _username = "1";
+    if(btDevice == null) {
+      // _ip = await SettingsManager.getFiscalPrinterHost();
+      // _port =
+      //     int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
+      //         3999;
+      // _noOfCharactersPerLine =
+      // await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
+      // _username = await SettingsManager.getFiscalPrinterUserName();
+      // _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
+    } else {
+      var printerResponse = FiscalPrinterResponse();
+      printerResponse.setAction(FiscalPrinterAction.dailySum);
+      var response = await _sendCommandBT(
+        message: DatecsMessage(
+          command: DatecsCommands.dailySum(operatorCode: _username!),
+        ),
+      );
+      if (response != null) {
+        var info = DatecsAnswerDailySum(answer: response.getAnswer());
+        if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
+          printerResponse.setStatus(PrinterStatus.ok);
+          printerResponse.setDailySum(info.amount);
+        } else {
+          printerResponse.setStatus(PrinterStatus.printerError);
+          printerResponse.setErrorMessage(
+              message: DatecsResponseAdapter.getErrorCodeInformation(
+                  errorCode: info.errorCode));
+        }
+      } else {
+        printerResponse.setStatus(PrinterStatus.error404);
+      }
+      print("Status: ${printerResponse.status}");
+      print("Action: ${printerResponse.action}");
+      print("Error message: ${printerResponse.errorMessage}");
+      print("Number of fiscal tickets: ${printerResponse.numberOfFiscalTickets}");
+      print("Number of Z report: ${printerResponse.numberOfZReport}");
+      print("Cash in drawer: ${printerResponse.getCashInDrawer()}");
+      print("Daily sum: ${printerResponse.getDailySum()}");
+      _fiscalPrinterTestController.sink.add(printerResponse);
+    }
+  }
+
   // printAdvanceFiscalBill({required ClientOrder clientOrder}) async {
   //   _ip = await SettingsManager.getFiscalPrinterHost();
   //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
@@ -585,7 +614,7 @@ class Datecs {
   //     }
   //   }
   // }
-  //
+
   // printFiscalBill({required Sale sale, required double change}) async {
   //   _ip = await SettingsManager.getFiscalPrinterHost();
   //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
@@ -854,7 +883,7 @@ class Datecs {
   //     }
   //   }
   // }
-  //
+
   // reprintFiscalBill({required Sale sale}) async {
   //   var printerResponse = FiscalPrinterResponse();
   //   printerResponse.setAction(FiscalPrinterAction.reprintFiscalBill);
@@ -1355,36 +1384,48 @@ class Datecs {
   //   }
   // }
   //
-  // addMoneyToCashRegister(double money) async {
-  //   _ip = await SettingsManager.getFiscalPrinterHost();
-  //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
-  //       3999;
-  //   _noOfCharactersPerLine =
-  //   await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
-  //   _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
-  //   var printerResponse = FiscalPrinterResponse();
-  //   printerResponse.setAction(FiscalPrinterAction.addMoney);
-  //   var response = await _sendCommand(
-  //     message: DatecsMessage(
-  //       command: DatecsCommands.cashIn(amount: money),
-  //     ),
-  //   );
-  //   if (response != null) {
-  //     var info = DatecsAnswerCashInOrOut(answer: response.getAnswer());
-  //     if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
-  //       printerResponse.setStatus(PrinterStatus.ok);
-  //     } else {
-  //       printerResponse.setStatus(PrinterStatus.printerError);
-  //       printerResponse.setErrorMessage(
-  //           message: DatecsResponseAdapter.getErrorCodeInformation(
-  //               errorCode: info.errorCode));
-  //     }
-  //   } else {
-  //     printerResponse.setStatus(PrinterStatus.error404);
-  //   }
-  //   _fiscalPrinterTestController.sink.add(printerResponse);
-  // }
-  //
+  addMoneyToCashRegister(double money, BluetoothDevice? btDevice) async {
+    device = btDevice;
+    if(device == null) {
+      // _ip = await SettingsManager.getFiscalPrinterHost();
+      // _port =
+      //     int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
+      //         3999;
+      // _noOfCharactersPerLine =
+      // await SettingsManager.getFiscalPrinterNoOfCharactersPerLine();
+      // _timeoutWaitingResponse = await SettingsManager.getFiscalPrinterTimeout();
+    } else {
+      var printerResponse = FiscalPrinterResponse();
+      printerResponse.setAction(FiscalPrinterAction.addMoney);
+      var response = await _sendCommandBT(
+        message: DatecsMessage(
+          command: DatecsCommands.cashIn(amount: money),
+        ),
+      );
+      if (response != null) {
+        var info = DatecsAnswerCashInOrOut(answer: response.getAnswer());
+        if (DatecsResponseAdapter.noErrorCode(errorCode: info.errorCode)) {
+          printerResponse.setStatus(PrinterStatus.ok);
+        } else {
+          printerResponse.setStatus(PrinterStatus.printerError);
+          printerResponse.setErrorMessage(
+              message: DatecsResponseAdapter.getErrorCodeInformation(
+                  errorCode: info.errorCode));
+        }
+      } else {
+        printerResponse.setStatus(PrinterStatus.error404);
+      }
+      print("Status: ${printerResponse.status}");
+      print("Action: ${printerResponse.action}");
+      print("Error message: ${printerResponse.errorMessage}");
+      print("Number of fiscal tickets: ${printerResponse.numberOfFiscalTickets}");
+      print("Number of Z report: ${printerResponse.numberOfZReport}");
+      print("Cash in drawer: ${printerResponse.getCashInDrawer()}");
+      print("Daily sum: ${printerResponse.getDailySum()}");
+      _fiscalPrinterTestController.sink.add(printerResponse);
+    }
+  }
+
   // extractMoneyFromCashRegister(double money) async {
   //   _ip = await SettingsManager.getFiscalPrinterHost();
   //   _port = int.tryParse(await SettingsManager.getFiscalPrinterPortAddress()) ??
@@ -1791,6 +1832,33 @@ class Datecs {
     return _response;
   }
 
+  Future<DatecsResponseAdapter?> _sendCommandBT(
+      {required DatecsMessage message}) async {
+    BluetoothConnection? connection;
+    DatecsResponseAdapter? response;
+    await BluetoothConnection.toAddress(device!.address).timeout(const Duration(seconds: 3))
+        .then((conn) {
+      connection = conn;
+    }).then((_) {
+      connection!.output.add(message.getMessage());
+      return connection!.input!.firstWhere((data) => !DatecsResponseAdapter(
+          response: data, sequenceNumber: message.seqNo)
+          .checkWaitToGetResponse()).timeout(const Duration(seconds: 9));
+          // .timeout(Duration(
+          // seconds: int.tryParse(_timeoutWaitingResponse ?? "9") ?? 9));
+    }).then((data) {
+      //print(data);
+      response =
+          DatecsResponseAdapter(response: data, sequenceNumber: message.seqNo);
+      connection?.close();
+    }).catchError((e) {
+      print(e);
+      //printerResponse.setStatus(PrinterStatus.failure);
+      connection?.close();
+    });
+    return response;
+  }
+
   _executeCommands(
       {required List<DatecsMessage> commands,
       required FiscalPrinterAction action}) async {
@@ -1802,6 +1870,16 @@ class Datecs {
     tcpClient.sendData(commands: commands);
   }
 
+  _executeCommandsBT(
+      {required List<DatecsMessage> commands,
+        required FiscalPrinterAction action}) async {
+    var bluetoothClient = DatecsBluetoothClientAdapter(btDevice: device!);
+    bluetoothClient.printerResponse.listen((printerResponse) {
+      printerResponse.setAction(action);
+      _fiscalPrinterTestController.sink.add(printerResponse);
+    });
+    bluetoothClient.sendData(commands: commands);
+  }
   // _cancelFiscalReceipt() async {
   //   var response = await _sendCommand(
   //       message: DatecsMessage(command: DatecsCommands.cancelFiscalReceipt()));
